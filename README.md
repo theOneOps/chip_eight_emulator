@@ -1,4 +1,4 @@
-# Projet : made a CHIP-8 emulator
+# Project : made a CHIP-8 emulator
 
 # Description
 
