@@ -2,39 +2,84 @@
 // Created by Billy on 27/01/2024.
 //
 
-#include "../headers/emulator.h"
 #include <time.h>
+#include "../headers/emulator.h"
 
 
-int initEmulator(emulator* theEmulator, unsigned int emulator_size)
+int initEmulator(emulator* theEmulator)
 {
     theEmulator->memory = (structRam*)malloc(sizeof(structRam));
 
-    theEmulator->memory->content = (uint8_t*)malloc(sizeof(uint8_t) * emulator_size);
-    theEmulator->memory->sizeRAM = emulator_size;
+    init_RAM(theEmulator->memory);
 
-    printf("taille de la ram depuis initEmulator : %d \n", theEmulator->memory->sizeRAM);
+    if(theEmulator->memory == NULL)
+    {
+        fprintf(stderr, "error in the ram 's initialization \n");
+        destroy_RAM(&theEmulator->memory); // Free RAM and its internal content
+    }
+
+    // load sprites in the memory
+    loadSpriteInRam(theEmulator->memory);
 
     theEmulator->processor = (cpu_t*)malloc(sizeof(cpu_t));
 
-    //theEmulator->processor->V[2] = 38;
-
     initializeCpu(theEmulator->processor);
 
-    //theEmulator->processor->V[2] = 38;
-
-    //theEmulator->mask = (masque_id*)malloc(sizeof(masque_id));
-
-    // initlaization of the mask structure on which out decode's functions will rely on
-    //initialize_masque_id(theEmulator->mask);
+    if(theEmulator->processor == NULL)
+    {
+        fprintf(stderr, "error in the processor 's initialization \n");
+        destroyCpu(&theEmulator->processor); // Free processor and its internal content
+    }
 
     // initialization of the screen's display
 
-    theEmulator->theDisplay = (Chip8Display*)malloc(sizeof(Chip8Display));
+    theEmulator->theDisplay = (struct Display*)malloc(sizeof(struct Display));
 
-    int ret = Display_init(theEmulator->theDisplay);
+    Display_init(theEmulator->theDisplay, 10);
+
+    // initialization of the keyboard's structure
+
+    theEmulator->KeyBoard = (struct Keyboard*)malloc(sizeof(struct Keyboard));
+
+    Keyboard_init(theEmulator->KeyBoard);
+
+    // initialization of the speaker's structure
+
+    theEmulator->Speaker = (struct Speaker*)malloc(sizeof(struct Speaker));
+
+    Speaker_init(theEmulator->Speaker);
 
     return 0;
+}
+
+void loadSpriteInRam(structRam* theRam) {
+    uint8_t key_characters[16][5] = {{0x00F0, 0x0090, 0x0090, 0x0090, 0x00F0}, // 0
+                                     {0x0020, 0x0060, 0x0020, 0x0020, 0x0070}, // 1
+                                     {0x00F0, 0x0010, 0x00F0, 0x0080, 0x00F0}, // 2
+                                     {0x00F0, 0x0010, 0x00F0, 0x0010, 0x00F0}, // 3
+                                     {0x0090, 0x0090, 0x00F0, 0x0010, 0x0010}, // 4
+                                     {0x00F0, 0x0080, 0x00F0, 0x0010, 0x00F0}, // 5
+                                     {0x00F0, 0x0080, 0x00F0, 0x0090, 0x00F0}, // 6
+                                     {0x00F0, 0x0010, 0x0020, 0x0040, 0x0040}, // 7
+                                     {0x00F0, 0x0090, 0x00F0, 0x0090, 0x00F0}, // 8
+                                     {0x00F0, 0x0090, 0x00F0, 0x0010, 0x00F0}, // 9
+                                     {0x00F0, 0x0090, 0x00F0, 0x0090, 0x0090}, // A
+                                     {0x00E0, 0x0090, 0x00E0, 0x0090, 0x00E0}, // B
+                                     {0x00F0, 0x0080, 0x0080, 0x0080, 0x00F0}, // C
+                                     {0x00E0, 0x0090, 0x0090, 0x0090, 0x00E0}, //D
+                                     {0x00F0, 0x0080, 0x00F0, 0x0080, 0x00F0}, // E
+                                     {0x00F0, 0x0080, 0x00F0, 0x0080, 0x0080}}; // F
+
+    // Choose the starting point in RAM, for example, 0x600
+    int start_address = 0x600;  // Starting at 1536 in decimal
+
+    for (int i = 0; i < 16; i++)
+    {  // For each character sprite
+        for (int j = 0; j < 5; j++)
+        {  // For each line of the sprite
+            theRam->content[start_address + i * 5 + j] = key_characters[i][j];
+        }
+    }
 }
 
 void destroyEmulator(emulator* theEmulator)
@@ -42,16 +87,32 @@ void destroyEmulator(emulator* theEmulator)
     if (theEmulator)
     {
         // destruction of the cpu's structure
-        destroyCpu(theEmulator->processor); // Free CPU and its internal structures
-        free(theEmulator->processor);
-
+        destroyCpu(&theEmulator->processor); // Free CPU and its internal structures
+        if (theEmulator->processor != NULL)
+        {
+            fprintf(stderr, "error in the cpu 's destruction \n");
+        }
         // destruction of the ram's structure
-        destroy_RAM(theEmulator->memory); // Free RAM and its internal content
-        free(theEmulator->memory);
+        destroy_RAM(&theEmulator->memory); // Free RAM and its internal content
 
+        if (theEmulator->memory != NULL)
+        {
+            fprintf(stderr, "error in the cpu 's destruction \n");
+        }
+        if (theEmulator->memory != NULL)
+        {
+            fprintf(stderr, "error in the ram 's destruction \n");
+        }
         // destruction of the display's structure
         Display_destroy(theEmulator->theDisplay);
         free(theEmulator->theDisplay);
+
+        // destruction of the keyBoard's structure
+        Keyboard_destroy(theEmulator->KeyBoard);
+        free(theEmulator->KeyBoard);
+
+        // destruction of the keyBoard's structure
+        Speaker_destroy(theEmulator->Speaker);
 
         free(theEmulator);
     }
@@ -69,7 +130,7 @@ int read_program(const char* filePath, emulator* theEmulator)
 
     // Seek to the end of the file to determine its size
     fseek(rom, 0, SEEK_END);
-    long romSize = ftell(rom);
+    long romSize = ftell(rom); //get the rom's size
     rewind(rom); // Reset the file position indicator to the beginning of the file
 
     // Allocate memory to store the ROM
@@ -82,7 +143,9 @@ int read_program(const char* filePath, emulator* theEmulator)
     }
 
     // Copy the ROM into the buffer
-    size_t bytesRead = fread(romBuffer, sizeof(uint8_t), romSize, rom);
+    size_t bytesRead = fread(theEmulator->memory->content + START_ADRESS,
+                             sizeof(uint8_t), romSize, rom);
+
     if (bytesRead != romSize)
     {
         fprintf(stderr, "Failed to read ROM file\n");
@@ -90,36 +153,7 @@ int read_program(const char* filePath, emulator* theEmulator)
         fclose(rom);
         return 0; // Indicate failure
     }
-
-    printf("taille ram : %d \n", theEmulator->memory->sizeRAM);
-
-    /**
-    for (int i = 0; i < romSize; i++)
-    {
-        printf("%02x \n", romBuffer[i]);
-    }
-    */
-
-    // Copy the ROM from the buffer into the Chip-8 memory
-    printf("fait fait avant \n");
-
-    int CHIP8_PROGRAM_LOAD_ADDRESS = 512;
-    for (int i = 0; i < romSize; i++)
-    {
-        theEmulator->memory->content[CHIP8_PROGRAM_LOAD_ADDRESS + i] = romBuffer[i];
-    }
-    printf("hello world \n");
-
-    /**
-    for (int i = 0; i < romSize; i++)
-    {
-        printf("%02x\n",theEmulator->memory->content[CHIP8_PROGRAM_LOAD_ADDRESS + i]);
-    }
-    */
-
-    // printf("le counter : %02x \n", *theEmulator->processor->PC);
-    // printf("le contenu du registre 2 est %d \n", theEmulator->processor->V[2]);
-    // Clean up
+    //print_ram_content(theEmulator->memory, bytesRead);
     free(romBuffer);
     fclose(rom);
 
@@ -130,43 +164,57 @@ int read_program(const char* filePath, emulator* theEmulator)
 bool runEmulator(emulator* theEmulator)
 {
     srand(time(0));
+    // we create an event to handle the keyboard's input
     SDL_Event event;
+    // we create a boolean to check if the emulator is running or still running
     bool isRunning = true;
 
     while (isRunning)
     {
         while (SDL_PollEvent(&event))
         {
+            // if the key pressed is SDL_QUIT, then the emulator stops, and we quit the program
             if (event.type == SDL_QUIT)
             {
                 isRunning = false;
                 break;
             }
-            // Handle other SDL events (e.g., keyboard input) as needed
         }
-
-        // Decode and Execute
+        // here, we interpret the opcode, and execute it and update the emulator's state
+        // (display, keyboard, speaker 's variable)
         interpreteOpCode(theEmulator->processor, theEmulator->memory,
-                         theEmulator->theDisplay);
+                         theEmulator->theDisplay, theEmulator->KeyBoard);
 
-        // Handle Timers
-        if (*(theEmulator->processor->DT) > 0)
+        // handle delay timer
+        if (theEmulator->processor->DT > 0)
         {
-            --(*(theEmulator->processor->DT));
+            --theEmulator->processor->DT;
         }
 
-        if (*(theEmulator->processor->ST) > 0)
+        // Handle sound timer
+        if (theEmulator->processor->ST > 0)
         {
-            // Sound logic here
-            --(*(theEmulator->processor->ST));
+            --theEmulator->processor->ST;
         }
 
-        // Implement your timing logic here (e.g., delay to simulate 60Hz operation)
-        SDL_Delay(1000 / 60); // Delay for approximately 1/60th of a second
+        //update the speaker of the emulator
+
+        if (theEmulator->processor->ST > 0)
+            Speaker_on(theEmulator->Speaker);
+        else
+            Speaker_off(theEmulator->Speaker);
+
+
+        // we are using the SDL_Delay function to slow down the execution of the emulator
+        SDL_Delay(theEmulator->processor->DT);
+        if (isRunning == false)
+            break;
     }
 
     destroyEmulator(theEmulator);
 
     return false;
 }
+
+
 

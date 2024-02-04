@@ -12,9 +12,14 @@ int main(int argc, char* argv[])
         fprintf(stderr, "Usage: emulator <ROM.ch8>\n");
         return 1;
     }
+    // we initialize the SDL library
     emulator* theEmulator = (emulator*)malloc(sizeof(emulator));
-    printf("The SDL library has been initialized successfully.\n");
-    if (!initEmulator(theEmulator, 4096))
+    if (theEmulator == NULL)
+    {
+        fprintf(stderr, "error in the emulator 's initialization \n");
+        destroyEmulator(theEmulator); // Free processor and its internal content
+    }
+    if (!initEmulator(theEmulator))
     {
         printf("The CHIP 8 emulator is ready.\n");
         if (read_program(argv[1], theEmulator))
@@ -25,7 +30,6 @@ int main(int argc, char* argv[])
                     !runEmulator(theEmulator)
                     );
         }
-        // destroyEmulator(theEmulator);
     }
     return 0;
 }
