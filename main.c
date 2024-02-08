@@ -4,8 +4,6 @@
 
 int main(int argc, char* argv[])
 {
-    //int errcode;
-
     if (argc != 2)
     {
         fprintf(stderr, "Unexpected number of arguments.\n");

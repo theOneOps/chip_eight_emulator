@@ -133,15 +133,6 @@ int read_program(const char* filePath, emulator* theEmulator)
     long romSize = ftell(rom); //get the rom's size
     rewind(rom); // Reset the file position indicator to the beginning of the file
 
-    // Allocate memory to store the ROM
-    uint8_t *romBuffer = (unsigned char *)malloc(sizeof(uint8_t) * romSize);
-    if (romBuffer == NULL)
-    {
-        fprintf(stderr, "Failed to allocate memory for ROM\n");
-        fclose(rom);
-        return 0; // Indicate failure
-    }
-
     // Copy the ROM into the buffer
     size_t bytesRead = fread(theEmulator->memory->content + START_ADRESS,
                              sizeof(uint8_t), romSize, rom);
@@ -149,12 +140,10 @@ int read_program(const char* filePath, emulator* theEmulator)
     if (bytesRead != romSize)
     {
         fprintf(stderr, "Failed to read ROM file\n");
-        free(romBuffer);
         fclose(rom);
         return 0; // Indicate failure
     }
     //print_ram_content(theEmulator->memory, bytesRead);
-    free(romBuffer);
     fclose(rom);
 
     return 1; // Indicate success
@@ -167,29 +156,28 @@ bool runEmulator(emulator* theEmulator)
     // we create an event to handle the keyboard's input
     SDL_Event event;
     // we create a boolean to check if the emulator is running or still running
-    bool isRunning = true;
+    bool isRunning = false;
 
-    while (isRunning)
+    while (!isRunning)
     {
         while (SDL_PollEvent(&event))
         {
             // if the key pressed is SDL_QUIT, then the emulator stops, and we quit the program
             if (event.type == SDL_QUIT)
             {
-                isRunning = false;
+                destroyEmulator(theEmulator);
+                isRunning = true;
                 break;
             }
         }
+
+        if (isRunning == true)
+            break;
         // here, we interpret the opcode, and execute it and update the emulator's state
         // (display, keyboard, speaker 's variable)
         interpreteOpCode(theEmulator->processor, theEmulator->memory,
                          theEmulator->theDisplay, theEmulator->KeyBoard);
 
-        // handle delay timer
-        if (theEmulator->processor->DT > 0)
-        {
-            --theEmulator->processor->DT;
-        }
 
         // Handle sound timer
         if (theEmulator->processor->ST > 0)
@@ -207,13 +195,9 @@ bool runEmulator(emulator* theEmulator)
 
         // we are using the SDL_Delay function to slow down the execution of the emulator
         SDL_Delay(theEmulator->processor->DT);
-        if (isRunning == false)
-            break;
     }
 
-    destroyEmulator(theEmulator);
-
-    return false;
+    return isRunning;
 }
 
 
